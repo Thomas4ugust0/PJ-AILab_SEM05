@@ -1,8 +1,8 @@
 # Semana 5 - Containerização e CI/CD
 
 ## 1. Identificação
-- **Equipe:** Equipe X (AILab Makers)
-- **Integrantes:** Thomas Augusto
+- **Estudante:** Thomas Augusto Amorim de Araujo
+- **Matricula:** 251016027
 - **Repositório:** [https://github.com/Thomas4ugust0/PJ-AILab_SEM05](https://github.com/Thomas4ugust0/PJ-AILab_SEM05)
 
 ## 2. Arquitetura

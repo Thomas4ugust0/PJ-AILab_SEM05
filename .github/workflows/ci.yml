@@ -83,3 +83,33 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: cd frontend && npm ci
       - run: cd frontend && npm run test
+
+  deploy-backend:
+    needs: test-backend
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build and Push Backend
+        run: |
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          docker build -t ghcr.io/$REPO-backend:latest -t ghcr.io/$REPO-backend:${{ github.sha }} -f backend/Dockerfile.prod backend/
+          docker push ghcr.io/$REPO-backend:latest
+          docker push ghcr.io/$REPO-backend:${{ github.sha }}
+
+  deploy-frontend:
+    needs: test-frontend
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build and Push Frontend
+        run: |
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          docker build -t ghcr.io/$REPO-frontend:latest -t ghcr.io/$REPO-frontend:${{ github.sha }} -f frontend/Dockerfile.prod frontend/
+          docker push ghcr.io/$REPO-frontend:latest
+          docker push ghcr.io/$REPO-frontend:${{ github.sha }}

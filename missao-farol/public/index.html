@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Mural Farol FM</title></head>
+<body>
+ <h1>Mural da Farol FM</h1>
+ <button type="button" id="login">Login</button>
+ <ul id="recados"></ul>
+ <form id="f"><input id="t" placeholder="Seu recado" required><button>Enviar</button></form>
+ <p id="msg"></p>
+ <script>
+  window.onerror = function(msg, url, line) {
+    document.getElementById("msg").textContent = "ERRO JS: " + msg + " na linha " + line;
+  };
+  window.onunhandledrejection = function(e) {
+    document.getElementById("msg").textContent = "ERRO ASYNC: " + (e.reason && e.reason.message ? e.reason.message : e.reason);
+  };
+ </script>
+ <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+  import { getFirestore, connectFirestoreEmulator, collection, onSnapshot, addDoc }
+  from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+  import { getAuth, connectAuthEmulator, signInAnonymously, onAuthStateChanged } 
+  from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+
+  const app = initializeApp({ 
+    projectId: "demo-farol", 
+    apiKey: "fake-api-key" 
+  });
+  
+  // Pega o host dinamicamente (localhost ou 127.0.0.1)
+  const host = window.location.hostname;
+  
+  // Setup Firestore
+  const db = getFirestore(app);
+  connectFirestoreEmulator(db, host, 8080);
+  
+  // Setup Authentication
+  const auth = getAuth(app);
+  connectAuthEmulator(auth, `http://${host}:9099`);
+
+  // Auth state listener
+  onAuthStateChanged(auth, (user) => {
+    const btn = document.getElementById("login");
+    if (user) {
+      btn.textContent = "Logado (UID: " + user.uid.substring(0, 5) + "...)";
+      btn.disabled = true;
+    } else {
+      btn.textContent = "Login";
+      btn.disabled = false;
+    }
+  });
+
+  // Login button click
+  document.getElementById("login").addEventListener("click", async () => {
+    document.getElementById("msg").textContent = "Conectando ao Auth...";
+    try {
+      await signInAnonymously(auth);
+      document.getElementById("msg").textContent = "Login realizado com sucesso!";
+    } catch (err) {
+      document.getElementById("msg").textContent = "Erro no login: " + err.message;
+    }
+  });
+
+  onSnapshot(collection(db, "recados"), (snap) => {
+   const ul = document.getElementById("recados");
+   ul.innerHTML = "";
+   snap.forEach((d) => {
+    const li = document.createElement("li");
+    li.textContent = d.data().texto;
+    ul.appendChild(li);
+   });
+  });
+
+  document.getElementById("f").addEventListener("submit", async (e) => {
+   e.preventDefault();
+   const msg = document.getElementById("msg");
+   msg.textContent = "Enviando recado para o emulador...";
+   try {
+    await addDoc(collection(db, "recados"), { texto: document.getElementById("t").value });
+    msg.textContent = "Recado enviado!";
+   } catch (err) {
+    msg.textContent = "Bloqueado: " + err.code;
+   }
+  });
+ </script>
+</body>
+</html>

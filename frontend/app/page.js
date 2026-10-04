@@ -16,7 +16,7 @@ export default function Home() {
         try {
           // Firebase init
           const firebaseConfig = {
-            projectId: "pj-ailab-sem06", // Ou o nome do projeto que o user configurou
+            projectId: "pj-ailab-sem06-65d6f",
             apiKey: "fake-api-key"
           };
           

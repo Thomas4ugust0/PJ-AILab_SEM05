@@ -32,3 +32,11 @@ postgres_data/
 # OS
 .DS_Store
 Thumbs.db
+
+# Firebase
+.firebase/
+firebase-debug.log
+*-export.json
+*-export/
+*.key.json
+*service-account*.json

@@ -58,7 +58,7 @@ export default function Home() {
 
   return (
     <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
-      <h1>Desafio Fase 3 - Frontend</h1>
+      <h1>Versão B</h1>
       <h2>Status da API Backend:</h2>
       {error && <p style={{ color: 'red' }}>Erro ao conectar: {error}</p>}
       
@@ -70,6 +70,25 @@ export default function Home() {
               <li key={index}>{item}</li>
             ))}
           </ul>
+          
+          <div style={{ marginTop: '2rem', padding: '1rem', border: '1px solid #ccc' }}>
+            <h3>Área de Teste de Segurança</h3>
+            <button 
+              onClick={async () => {
+                try {
+                  const { getFirestore, collection, addDoc } = await import("firebase/firestore");
+                  const db = getFirestore();
+                  await addDoc(collection(db, "items"), { name: "Hacked!" });
+                  alert("Vulnerabilidade! Escrita permitida!");
+                } catch (err) {
+                  alert("Segurança funcionando: " + err.message);
+                }
+              }}
+              style={{ padding: '0.5rem 1rem', cursor: 'pointer' }}
+            >
+              Testar Invasão (Escrita)
+            </button>
+          </div>
         </div>
       ) : !error ? (
         <p>Carregando...</p>

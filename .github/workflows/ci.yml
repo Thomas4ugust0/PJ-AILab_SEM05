@@ -113,3 +113,62 @@ jobs:
           docker build -t ghcr.io/$REPO-frontend:latest -t ghcr.io/$REPO-frontend:${{ github.sha }} -f frontend/Dockerfile.prod frontend/
           docker push ghcr.io/$REPO-frontend:latest
           docker push ghcr.io/$REPO-frontend:${{ github.sha }}
+
+  deploy-firebase-preview:
+    needs: test-frontend
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    concurrency: 
+      group: firebase-preview-${{ github.head_ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - run: cd frontend && npm ci
+      - run: cd frontend && STATIC_EXPORT=true NEXT_PUBLIC_DATA_SOURCE=firestore NEXT_PUBLIC_USE_EMULATOR=false npm run build
+      - id: firebase_deploy
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PJ_AILAB_SEM06_65D6F }}
+          projectId: pj-ailab-sem06-65d6f
+      - name: Teste de fumaca
+        run: |
+          URL=$(echo "${{ steps.firebase_deploy.outputs.urls }}" | awk -F',' '{print $1}')
+          echo "Testando URL: $URL"
+          curl --fail "$URL"
+
+  deploy-firebase-prod:
+    needs: test-frontend
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: 
+      group: firebase-prod
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - run: cd frontend && npm ci
+      - run: cd frontend && STATIC_EXPORT=true NEXT_PUBLIC_DATA_SOURCE=firestore NEXT_PUBLIC_USE_EMULATOR=false npm run build
+      - id: firebase_deploy
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PJ_AILAB_SEM06_65D6F }}
+          projectId: pj-ailab-sem06-65d6f
+          channelId: live
+      - name: Teste de fumaca
+        run: |
+          URL=$(echo "${{ steps.firebase_deploy.outputs.urls }}" | awk -F',' '{print $1}')
+          echo "Testando URL: $URL"
+          curl --fail "$URL"

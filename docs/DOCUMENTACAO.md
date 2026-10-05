@@ -1,65 +1,102 @@
-# Semana 5 - Containerização e CI/CD
+# Semana 6 - Do Container à Nuvem (GCP e Firebase)
 
-## 1. Identificação
-- **Estudante:** Thomas Augusto Amorim de Araujo
-- **Matricula:** 251016027
-- **Repositório:** [https://github.com/Thomas4ugust0/PJ-AILab_SEM05](https://github.com/Thomas4ugust0/PJ-AILab_SEM05)
+## 1. Identificacao
+- **Aluno(a):** Thomas Augusto Amorim de Araujo
+- **Repositorio:** [https://github.com/Thomas4ugust0/PJ-AILab_SEM05](https://github.com/Thomas4ugust0/PJ-AILab_SEM05)
+- **URL de producao:** https://pj-ailab-sem06-65d6f.web.app/
+- **URL do canal (Versao B):** https://pj-ailab-sem06-65d6f--versao-b-ftnxwadu.web.app
 
 ## 2. Arquitetura
-- **Stack utilizada:** Django (Backend API), Next.js (Frontend), PostgreSQL (Banco de dados), Nginx (Proxy Reverso), Docker e GitHub Actions.
-- **Serviços e Portas:**
-  - `nginx`: 80 (HTTP) e 443 (HTTPS) - *Únicas expostas ao host em produção*.
-  - `backend`: 8000 (Django/Gunicorn) - *Rede interna*.
-  - `frontend`: 3000 (Next.js) - *Rede interna*.
-  - `db`: 5432 (PostgreSQL) - *Rede interna*.
-- **Volumes:** `postgres_data` montado em `/var/lib/postgresql/data` para persistência segura do banco.
-- **Fluxo de comunicação:**
-  - Em produção, o cliente acessa via porta 80 ou 443 (Nginx). 
-  - O Nginx redireciona `/api/` e `/admin/` para o `backend:8000`.
-  - O Nginx redireciona as demais requisições `/` para o `frontend:3000`.
-  - O Next.js (Server Component) faz requisições diretas à API usando a rede interna do docker em `http://backend:8000/api/health/`.
+- **Diagrama:**
+```mermaid
+flowchart TD
+    User([Navegador / Cliente]) --> |Acesso HTTPS / CDN| Hosting[Firebase Hosting]
+    User --> |Consultas via SDK| Firestore[(Cloud Firestore)]
 
-## 3. Etapa 1 - DEV
-- **Implementação:** Foram criados os `Dockerfile` base voltados para desenvolvimento, focando em ferramentas de hot reload.
-  - **Backend:** Usa `python:3.12-slim`, expõe a porta 8000 e roda o comando padrão `runserver`. O `DEBUG=True` está configurado nativamente no `settings.py`.
-  - **Frontend:** Usa `node:20-alpine`, instala todas as dependências (`npm install`) e usa `npm run dev`. O Next.js 16 usa o Turbopack nativamente, gerindo o hot-reload eficientemente sem configurações webpack legadas.
-- **Validação e Evidências:** A comunicação foi validada rodando os contêineres individualmente mapeando volumes (bind mounts) para os diretórios locais.
+    subgraph Firebase Cloud (Plano Spark)
+        Hosting --> |Arquivos Estáticos| Static[Next.js Export]
+        Firestore --> |Regras de Segurança| Rules[firestore.rules]
+    end
 
-## 4. Etapa 2 - Docker Compose
-- **Implementação:** Criação do `docker-compose.yml` base para desenvolvimento, colocando todos os serviços na mesma stack.
-- **Healthcheck e Dependências:** Adicionado o script de healthcheck `pg_isready` no serviço `db`, garantindo que o banco de dados esteja totalmente pronto antes do backend subir (`depends_on: db: condition: service_healthy`).
-- **Persistência:** Utilizado o volume nomeado `postgres_data`.
-- **Credenciais:** Criado um `.env.example` versionado e um `.env` real protegido pelo `.gitignore`.
+    subgraph Ambiente Docker Local (Semana 5 Intacta)
+        Nginx[Nginx Proxy] --> Django[Django Backend]
+        Django --> PG[(PostgreSQL)]
+    end
+    
+    style Hosting fill:#ffca28,color:black
+    style Firestore fill:#ffca28,color:black
+```
+- **Fluxo de requisicao:** O cliente acessa o Firebase Hosting que serve os arquivos estáticos gerados pelo Next.js (HTML/JS/CSS). A página frontend então realiza chamadas diretamente ao Cloud Firestore pelo navegador utilizando o SDK oficial do Firebase para exibir a lista de itens.
+- **O que continua no Docker local:** O servidor Nginx, a API backend em Django e o banco de dados PostgreSQL. Essa infraestrutura da Semana 5 permanece intacta localmente para desenvolvimento e servindo a API caso não utilizássemos o Firestore.
 
-## 5. Etapa 3 - CI (Integração Contínua)
-- **Jobs:** Workflow do Github Actions em `.github/workflows/ci.yml`.
-  - **Trilha Backend:** `lint-backend` (com Flake8 e configurações em `.flake8`) -> `build-backend` -> `test-backend` (executado via docker-compose para injetar o DB de forma fluida).
-  - **Trilha Frontend:** `lint-frontend` (com ESLint) -> `build-frontend` -> `test-frontend` (usando o Jest configurado com mock do `fetch`).
-- **Fail-Fast e Cache:** O atributo `needs` foi utilizado em cada *step* dependente, travando (Fail-Fast) o pipeline caso algum estoure erro. As actions oficiais `setup-python` e `setup-node` estão gerindo caches (`pip` e `npm`) para acelerar a execução.
+## 3. Etapa 1 - Projeto e CLI
+- **Plano Spark (evidencia):** Projeto criado no plano Spark desabilitando o Google Analytics. ID do projeto: `pj-ailab-sem06-65d6f`.
+- **Arquivos de configuracao:** Inicialização feita com `firebase init`. Configurações armazenadas em `firebase.json` (apontando a public folder para `frontend/out`) e `.firebaserc`.
+- **Higiene do Git:** Arquivos sensíveis e não essenciais como chaves JSON (`*.key.json`), `.firebase/`, e `firebase-debug.log` foram bloqueados através da atualização do arquivo `.gitignore`.
+- **Commit:** `820b5d5`
 
-## 6. Etapa 4 - Produção
-- **Backend (`Dockerfile.prod`):** Migração para `python:3.12-alpine` para redução drástica de imagem. Utilização do `gunicorn` para escalabilidade em produção, e criação de usuário seguro `appuser` sem privilégios root.
-- **Frontend (`Dockerfile.prod`):** Aplicação do conceito de **Multi-stage build** (dividido nos estágios `deps`, `builder` e `runner`). O Next.js foi configurado com `output: 'standalone'` no `next.config.mjs`, permitindo que apenas os binários vitais fossem copiados para a imagem final executada pelo usuário restrito `nextjs`. A imagem resultante possui alto isolamento e tamanho drasticamente reduzido (menor que 150MB).
+## 4. Etapa 2 - Deploy mais rapido
+- **Modo de exportacao:** O arquivo `next.config.mjs` foi configurado para gerar um build estático opcional condicionado pela variável `STATIC_EXPORT=true` (`output: process.env.STATIC_EXPORT === 'true' ? 'export' : 'standalone'`), não quebrando o container original.
+- **Estado de erro amigavel:** O componente Next.js foi refatorado para `"use client"` com tratamento de falhas na chamada original do fetch para mostrar a mensagem "Erro ao conectar: dados indisponíveis" em vez de quebrar a tela branca (quando no ar).
+- **Semana 5 continua funcionando:** Graças à condicional na variável de ambiente de build, o Docker de produção segue rodando perfeitamente no modo standalone.
+- **Tempo:** (Deployment em poucos segundos).
+- **Commit:** `cec75e1`
 
-## 7. Etapa 5 - Nginx e SSL
-- **Reverse Proxy e Portas:** Configuração contida no arquivo `docker-compose-prod.yml`. Remoção de todos os *binds* de portas do Front, Back e DB (garantindo que não vazem para o host). Apenas o Nginx expõe portas 80 e 443.
-- **HTTPS e Redirecionamento:** O arquivo `nginx/nginx.conf` possui a regra `return 301 https://$host$request_uri;` que força todos os acessos inseguros para a porta SSL criptografada com certificados locais da pasta `/certs/`.
+## 5. Etapa 3 - Emulator Suite
+- **Configuracao dos emuladores:** Bloco `emulators` inserido no `firebase.json` nas portas 5000 (Hosting), 8080 (Firestore) e 4000 (UI).
+- **Fonte de dados:** Código frontend mapeado para ler da variável `NEXT_PUBLIC_DATA_SOURCE`. Quando for `firestore`, o SDK utiliza o `getFirestore` do Firebase. Quando `NEXT_PUBLIC_USE_EMULATOR=true`, conecta na máquina local (127.0.0.1:8080).
+- **Regras:** Regra no arquivo `firestore.rules` criada na coleção `items` para permitir leitura e bloquear a escrita.
+- **Leitura permitida / escrita negada:** Testado localmente acessando o Hosting emulado.
+- **Commit:** `38280b7`
 
-## 8. Etapa 6 - Deploy no GHCR (GitHub Container Registry)
-- **Jobs adicionados:** Estensão da esteira CI/CD adicionando os fluxos paralelos `deploy-backend` e `deploy-frontend`.
-- **Permissões:** Concedido o `packages: write` no repositório.
-- **Tags Automáticas:** Login realizado com `${{ secrets.GITHUB_TOKEN }}`. As imagens de produção são construídas e publicadas automaticamente sempre que houver *push* na `main`, recebendo obrigatoriamente a tag `:latest` e a respectiva hash identificadora do commit `${{ github.sha }}`.
+## 6. Etapa 4 - Firestore de producao e Versao B
+- **Regras publicadas:** Regras oficiais disparadas ao Cloud via `firebase deploy --only firestore:rules`.
+- **Dados de producao:** Itens semeados cadastrados manualmente no Console Oficial do Firebase na nuvem.
+- **Canal da Versao B:** Foi publicado um deploy isolado para preview channel, gerando uma URL segura temporária que vence em 7 dias sem sobrepor o ambiente de produção real.
+- **Rollback:** Verificou-se pelo painel do Firebase Console na aba Hosting o histórico de deploy e a capacidade de retroceder o deploy instantaneamente pela interface gráfica caso uma subida estivesse incorreta. O botão de "Testar Invasão" confirmou que a tentativa de escrita é rejeitada por falta de autorização.
+- **Commit:** `c844915`
 
-## 9. Validação Final
-- **Comandos executados:** `docker compose -f docker-compose-prod.yml up -d` usando SSL.
-- **Resultados:** Acesso local protegido e operante pelo Nginx. O Action rodou perfeitamente os testes paralelizados e o Deploy. As imagens estão disponíveis nas packages do repositório no Github.
+## 7. Etapa 5 - CD com GitHub Actions
+- **Workflow:** Modificado o antigo `.github/workflows/ci.yml` para absorver os processos oficiais do Firebase.
+- **Preview em PR:** Um job `deploy-firebase-preview` engatilhado para os Pull Requests, isolando builds paralelos através do `concurrency`.
+- **Deploy no merge:** Um job `deploy-firebase-prod` condicionado à branch principal `main`, empurrando diretamente para o Live channel após todos os testes passarem (`needs: test-frontend`).
+- **Teste de fumaca:** Script bash incluído extraindo a URL de deploy nativa do script e validando com `curl --fail "$URL"`.
+- **Reflexao sobre a chave JSON:** Utilizar a credencial JSON como secret para o GitHub Actions é altamente aceitável para um projeto pessoal de pequeno/médio porte por sua rapidez e facilidade de configuração em que apenas o CI tem acesso ao conteúdo. Para aplicações empresariais e ambientes rigorosos (Enterprise), o *Workload Identity Federation* deve ser padrão, visto que elimina as senhas (JSON) fixas gerando tokens temporários. Isso evita desastres permanentes em casos de vazamento.
+- **Commit:** `d8921cb`
 
-## 10. Histórico Git
-| Etapa | Commit | Descrição |
+## 8. Desenho de producao gerenciada
+
+| Componente | Servico equivalente | Configuracao |
 |---|---|---|
-| 1 | `b943df5` | `feat: Etapa 1 - Containerizacao DEV (Backend e Frontend)` - Boilerplates básicos de Django e Next.js com Dockerfiles. |
-| 2 | `d773dd7` | `feat: Etapa 2 - Orquestracao DEV com Docker Compose e DB` - Docker compose integrando Banco, Front e Back. |
-| 3 | `0a3cd17` | `feat: Etapa 3 - Pipeline de CI (Fail-Fast e validacao)` - Workflow do Github Actions com steps de dependências (Lint/Build/Test). |
-| 4 | `febc39e` | `feat: Etapa 4 - Containers de PRODUCAO (Multi-stage, Alpine, non-root)` - Imagens prod otimizadas em segurança e tamanho. |
-| 5 | `e3ed105` | `feat: Etapa 5 - Stack Completo de PRODUCAO com Nginx e SSL` - Proxy reverso, certificados autoassinados e rede isolada. |
-| 6 | `923aa2a` | `feat: Etapa 6 - Deploy Continuo (CD) no GHCR` - Publish automatizado das imagens `.prod` com hash única e tag latest na registry. |
+| Imagens no GHCR | Artifact Registry | Promoção da imagem por SHA de commit. |
+| PostgreSQL | Cloud SQL | Conexão segura, migrações em job separado, backups automáticos. |
+| Arquivo .env | Secret Manager | Papel de acesso somente ao segredo necessário para cada serviço. |
+| Backend Django | Cloud Run | Porta do contêiner configurada, conta de serviço própria conectada, escala de 0 a máxima configurada para lidar com requisições HTTP. |
+| Nginx Proxy | Firebase Hosting | Rewrite configurado para o Cloud Run simulando a mesma origem para o navegador e mitigando falhas de cookies cross-domain. |
+
+- **Custo mensal estimado:** Aproximadamente US$ 25 a 45/mês no caso de uma instância DB leve persistente, podendo subir a depender do consumo do Artifact Registry e tráfego ativo diário no Cloud Run.
+- **Por que o Spark nao permite:** O plano Spark cobre exclusivamente serviços Serverless/BaaS puros fornecidos na camada Firebase (Hosting, Functions antigamente, Auth e Firestore em limites diários baixos). Qualquer produto intrinsecamente amarrado à infraestrutura Google Cloud computacional base, como Instâncias Cloud SQL ou Processamento em Cloud Run (Containers), exige ativação prévia de método de pagamento (Billing) para gerenciar excedentes de consumo computacional imprevisível.
+
+## 9. Custo zero e limites
+- **Plano:** Spark.
+- **Cotas usadas:** Hosting e Cloud Firestore dentro da cota diária de leitura e armazenamento.
+- **Servicos NAO habilitados:** Cloud Run, Artifact Registry, Cloud SQL, Functions (App Hosting não pôde ser ativado por exigir faturamento).
+
+## 10. Validacao final
+- **Comandos executados:**
+  - `firebase init`
+  - `firebase deploy --only hosting`
+  - `firebase emulators:start`
+  - `firebase deploy --only firestore:rules`
+- **Resultados:** Arquitetura híbrida validada. Deploy do frontend via Github Actions automático na branch principal com sucesso e regras bloqueadas funcionando.
+- **Limitacoes:** Limite drástico de leituras na documentação, sendo necessário muito cuidado em repetições e fetch contínuo do Firestore no plano 100% gratuito.
+
+## 11. Historico Git
+| Etapa | Commit | Descricao |
+|---|---|---|
+| Missão Farol | `1f30e07` | feat: concluida Missao Farol (Nivel Platina) |
+| 1 | `820b5d5` | chore: setup inicial do Firebase e regras de seguranca |
+| 2 | `cec75e1` | feat: implementação da etapa 2 do projeto |
+| 3 | `38280b7` | feat: integracao com emulador firestore e dados semente (etapa 3) |
+| 4 | `c844915` | feat: integração com a firestore |
+| 5 | `d8921cb` | feat: ínicio do piipeline de automação |

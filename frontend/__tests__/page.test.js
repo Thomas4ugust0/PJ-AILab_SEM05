@@ -10,9 +10,8 @@ global.fetch = jest.fn(() =>
 
 describe('Page', () => {
   it('renders a heading', async () => {
-    const page = await Page()
-    render(page)
-    const heading = screen.getByRole('heading', { level: 1 })
+    render(<Page />)
+    const heading = await screen.findByRole('heading', { level: 1 })
     expect(heading).toBeInTheDocument()
   })
 })

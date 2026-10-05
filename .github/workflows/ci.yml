@@ -169,6 +169,5 @@ jobs:
           channelId: live
       - name: Teste de fumaca
         run: |
-          URL=$(echo "${{ steps.firebase_deploy.outputs.urls }}" | awk -F',' '{print $1}')
-          echo "Testando URL: $URL"
-          curl --fail "$URL"
+          echo "Testando URL de Produção: https://pj-ailab-sem06-65d6f.web.app"
+          curl -sS -L --fail "https://pj-ailab-sem06-65d6f.web.app"
